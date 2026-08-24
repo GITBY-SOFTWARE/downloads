@@ -1,42 +1,55 @@
 # Gitby downloads
 
-This is the official public distribution repository for Gitby. It will host the
-compiled `gitby` terminal client and the VS Code-compatible extension without
-exposing the private engine source repository.
+This is the official public distribution repository for Gitby. It hosts the
+compiled `gitby` CLI + TUI and the VS Code-compatible extension without exposing
+the private engine source repository.
 
 > Release publishing is currently being wired. Until the first release appears,
 > there is no public installation package in this repository.
 
 ## Install
 
-Once the first public release is available, use the branded installer for your
-platform:
+Once the first public release is available, use the installer for your platform:
 
 **macOS and Linux**
 
 ```sh
-curl -fsSL https://gitby.sh/install | sh
+curl -fsSL https://github.com/GITBY-SOFTWARE/downloads/releases/latest/download/install.sh | sh
 ```
 
 **Windows PowerShell**
 
 ```powershell
-irm https://gitby.sh/install.ps1 | iex
+irm https://github.com/GITBY-SOFTWARE/downloads/releases/latest/download/install.ps1 | iex
 ```
 
-The installer will select the correct platform build and verify it before
-installation. You do not need to clone this repository.
+The installers detect x64 or ARM64, select the correct build, verify its SHA-256
+checksum, and install for the current user without requiring root. Linux releases
+are statically linked with musl so the same binary works across modern glibc- and
+musl-based distributions. You do not need to clone this repository.
+
+Set `GITBY_INSTALL_DIR` to choose a different destination or `GITBY_VERSION` to
+pin a release. The defaults are `~/.local/bin` on macOS/Linux and
+`%LOCALAPPDATA%\Gitby\bin` on Windows.
 
 ## Release contents
 
 Each release is intended to include:
 
-- the `gitby` TUI for supported Linux, macOS, and Windows targets;
+- the `gitby` CLI + TUI for x64 and ARM64 Linux, macOS, and Windows;
 - `gitby-vscode.vsix` for VS Code, Cursor, VSCodium, and Windsurf;
-- SHA-256 checksums and release signatures.
+- `SHA256SUMS` for installer verification.
 
 The privately operated `gitby-server` is not distributed from this public
 repository.
 
 Published versions will appear on the [Releases](https://github.com/GITBY-SOFTWARE/downloads/releases)
 page. Product information is available at [gitby.cloud](https://gitby.cloud).
+
+## Publishing
+
+The private `engine` repository builds every platform and publishes `public-dist`
+here with a short-lived GitHub App token. The App must be installed only on this
+repository with **Contents: write**. Configure its numeric App ID as the
+`DOWNLOADS_APP_ID` Actions variable and its private key as the
+`DOWNLOADS_APP_PRIVATE_KEY` Actions secret in `GITBY-SOFTWARE/engine`.
