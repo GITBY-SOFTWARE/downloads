@@ -4,14 +4,19 @@ This is the official public distribution repository for Gitby. It hosts the
 compiled `gitby` CLI + TUI and the VS Code-compatible extension without exposing
 the private engine source repository.
 
-> Release publishing is currently being wired. Until the first release appears,
-> there is no public installation package in this repository.
-
 ## Install
 
-Once the first public release is available, use the installer for your platform:
+**macOS (Apple Silicon or Intel)**
 
-**macOS and Linux**
+```sh
+curl -fsSL https://github.com/GITBY-SOFTWARE/downloads/releases/latest/download/install.sh | sh
+```
+
+The installer detects the Mac's architecture, verifies the release checksum,
+and installs `gitby` for the current user in `~/.local/bin` without requiring
+administrator access. Open a new terminal after installation, then run `gitby`.
+
+**Linux**
 
 ```sh
 curl -fsSL https://github.com/GITBY-SOFTWARE/downloads/releases/latest/download/install.sh | sh
