@@ -8,6 +8,13 @@ param()
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 
+# Windows PowerShell 5.1 may default to a protocol set without TLS 1.2, which
+# GitHub requires. Opt in additively; PowerShell 7 ignores this harmlessly.
+try {
+    [Net.ServicePointManager]::SecurityProtocol = `
+        [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+} catch {}
+
 $repository = "GITBY-SOFTWARE/downloads"
 $version = if ($env:GITBY_VERSION) { $env:GITBY_VERSION } else { "latest" }
 if ($env:GITBY_INSTALL_DIR) {
@@ -19,12 +26,30 @@ if ($env:GITBY_INSTALL_DIR) {
     $installDirectory = Join-Path $env:LOCALAPPDATA "Gitby\bin"
 }
 
-$architecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
-$asset = switch ($architecture) {
-    "X64" { "gitby-windows-x64.zip" }
-    "Arm64" { "gitby-windows-arm64.zip" }
+# Detect the OS architecture. PowerShell 7 exposes RuntimeInformation, but on
+# Windows PowerShell 5.1 the static property silently resolves to $null (so
+# .ToString() on it crashed the whole installer). Fall back to the environment;
+# PROCESSOR_ARCHITEW6432 covers a 32-bit or emulated process on a 64-bit OS.
+$architecture = $null
+try {
+    $architecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
+} catch {
+    $architecture = $null
+}
+if (-not $architecture) {
+    $architecture = if ($env:PROCESSOR_ARCHITEW6432) {
+        $env:PROCESSOR_ARCHITEW6432
+    } else {
+        $env:PROCESSOR_ARCHITECTURE
+    }
+}
+
+$asset = switch (([string]$architecture).ToUpperInvariant()) {
+    { $_ -in "X64", "AMD64" } { "gitby-windows-x64.zip"; break }
+    "ARM64" { "gitby-windows-arm64.zip"; break }
     default { throw "Unsupported Windows architecture: $architecture. Gitby supports x64 and ARM64." }
 }
+$architectureLabel = if ($asset -eq "gitby-windows-arm64.zip") { "arm64" } else { "x64" }
 
 if ($env:GITBY_DOWNLOAD_BASE) {
     $base = $env:GITBY_DOWNLOAD_BASE.TrimEnd("/")
@@ -42,7 +67,7 @@ try {
     $archivePath = Join-Path $temporaryDirectory $asset
     $checksumsPath = Join-Path $temporaryDirectory "SHA256SUMS"
 
-    Write-Host "Downloading Gitby for windows/$($architecture.ToLowerInvariant())..."
+    Write-Host "Downloading Gitby for windows/$architectureLabel..."
     Invoke-WebRequest -UseBasicParsing -Uri "$base/$asset" -OutFile $archivePath
     Invoke-WebRequest -UseBasicParsing -Uri "$base/SHA256SUMS" -OutFile $checksumsPath
 
