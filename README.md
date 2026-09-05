@@ -37,6 +37,17 @@ Set `GITBY_INSTALL_DIR` to choose a different destination or `GITBY_VERSION` to
 pin a release. The defaults are `~/.local/bin` on macOS/Linux and
 `%LOCALAPPDATA%\Gitby\bin` on Windows.
 
+## Update
+
+```sh
+gitby update
+```
+
+`gitby update` (or `gitby upgrade`) installs the newest release over the
+running binary on every platform. Running the install line again does the
+same. `gitby help` lists every command and `gitby --version` prints the
+installed version.
+
 ## Release contents
 
 Each release is intended to include:

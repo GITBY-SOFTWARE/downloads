@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param()
 
-# Install the Gitby CLI + TUI for the current Windows user.
+# Install the Gitby CLI + TUI for the current Windows user. Running it again
+# updates an existing install in place (so does `gitby update`).
 # Optional environment variables: GITBY_VERSION, GITBY_INSTALL_DIR,
 # GITBY_DOWNLOAD_BASE, and GITBY_NO_MODIFY_PATH.
 
@@ -89,7 +90,7 @@ try {
     }
 
     $expandedDirectory = Join-Path $temporaryDirectory "expanded"
-    Expand-Archive -LiteralPath $archivePath -DestinationPath $expandedDirectory
+    Expand-Archive -LiteralPath $archivePath -DestinationPath $expandedDirectory -Force
     $sourceBinary = Join-Path $expandedDirectory "gitby.exe"
     if (-not (Test-Path -LiteralPath $sourceBinary -PathType Leaf)) {
         throw "Release archive did not contain gitby.exe."
@@ -99,7 +100,32 @@ try {
     $destination = Join-Path $installDirectory "gitby.exe"
     $staged = Join-Path $installDirectory (".gitby.new." + $PID + ".exe")
     Copy-Item -LiteralPath $sourceBinary -Destination $staged -Force
-    Move-Item -LiteralPath $staged -Destination $destination -Force
+
+    # Binaries an earlier update set aside while they were still running.
+    Get-ChildItem -LiteralPath $installDirectory -Filter ".gitby.old.*.exe" -Force -ErrorAction SilentlyContinue |
+        ForEach-Object { Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue }
+
+    # Update in place: Windows will not overwrite an executable, and will not
+    # delete one that is running, but it will rename one. So the installed
+    # binary steps aside, the new one takes its name, and the old file goes
+    # as soon as nothing holds it open.
+    $updating = Test-Path -LiteralPath $destination -PathType Leaf
+    $retired = $null
+    if ($updating) {
+        $retired = Join-Path $installDirectory (".gitby.old." + $PID + ".exe")
+        Move-Item -LiteralPath $destination -Destination $retired -Force
+    }
+    try {
+        Move-Item -LiteralPath $staged -Destination $destination -Force
+    } catch {
+        if ($retired -and (Test-Path -LiteralPath $retired -PathType Leaf)) {
+            Move-Item -LiteralPath $retired -Destination $destination -Force -ErrorAction SilentlyContinue
+        }
+        throw
+    }
+    if ($retired) {
+        Remove-Item -LiteralPath $retired -Force -ErrorAction SilentlyContinue
+    }
 
     $pathChanged = $false
     $pathEntries = @($env:PATH -split ";" | Where-Object { $_ })
@@ -123,11 +149,15 @@ try {
         }
     }
 
-    Write-Host "Installed Gitby to $destination"
+    if ($updating) {
+        Write-Host "Updated Gitby at $destination"
+    } else {
+        Write-Host "Installed Gitby to $destination"
+    }
     if ($pathChanged) {
         Write-Host "Added $installDirectory to your user PATH. Open a new terminal, then run: gitby"
     } else {
-        Write-Host "Run: gitby"
+        Write-Host "Run: gitby   (later, 'gitby update' installs new releases)"
     }
 } finally {
     Remove-Item -LiteralPath $temporaryDirectory -Recurse -Force -ErrorAction SilentlyContinue
