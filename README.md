@@ -49,7 +49,7 @@ The privately operated `gitby-server` is not distributed from this public
 repository.
 
 Published versions will appear on the [Releases](https://github.com/GITBY-SOFTWARE/downloads/releases)
-page. Product information is available at [gitby.cloud](https://gitby.cloud).
+page.
 
 ## Publishing
 
