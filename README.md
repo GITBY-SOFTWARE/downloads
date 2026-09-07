@@ -48,14 +48,17 @@ Gitby publishes two channels:
   `gitby.cloud`, and are meant for testing only. Opt in with `GITBY_CHANNEL`:
 
   ```sh
-  curl -fsSL https://github.com/GITBY-SOFTWARE/downloads/releases/latest/download/install.sh | GITBY_CHANNEL=development sh
+  curl -fsSL https://github.com/GITBY-SOFTWARE/downloads/releases/download/development/install.sh | GITBY_CHANNEL=development sh
   ```
 
   ```powershell
-  $env:GITBY_CHANNEL='development'; irm https://github.com/GITBY-SOFTWARE/downloads/releases/latest/download/install.ps1 | iex
+  $env:GITBY_CHANNEL='development'; irm https://github.com/GITBY-SOFTWARE/downloads/releases/download/development/install.ps1 | iex
   ```
 
-  `gitby update` and the default `latest` never pick up the development channel.
+  Note the installer is fetched from the `development` release itself, not
+  `latest`: the `latest` installer is the production one (no `GITBY_CHANNEL`
+  support), and there may be no production `latest` at all yet. `gitby update`
+  and the default `latest` never pick up the development channel.
 
 ## Update
 
