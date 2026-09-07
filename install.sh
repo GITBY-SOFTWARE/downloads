@@ -4,6 +4,9 @@
 #
 # Overrides:
 #   GITBY_VERSION=0.1.42          install a specific release (default: latest)
+#   GITBY_CHANNEL=development      install the development channel (dev stack;
+#                                  a moving pre-release built from every push to
+#                                  main). Default is the "release" channel.
 #   GITBY_INSTALL_DIR=/some/path  install somewhere other than ~/.local/bin
 #   GITBY_NO_MODIFY_PATH=1        do not update the user's shell profile
 #   GITBY_DOWNLOAD_BASE=https://  use a custom release base (tests/mirrors)
@@ -13,6 +16,7 @@ umask 077
 
 repo="GITBY-SOFTWARE/downloads"
 version=${GITBY_VERSION:-latest}
+channel=${GITBY_CHANNEL:-release}
 
 say() {
     printf '%s\n' "$*"
@@ -71,12 +75,19 @@ asset="gitby-${os}-${arch}.tar.gz"
 
 if [ -n "${GITBY_DOWNLOAD_BASE:-}" ]; then
     base=${GITBY_DOWNLOAD_BASE%/}
+elif [ "$channel" = development ]; then
+    # The development channel is a single moving pre-release ("development")
+    # built from every push to main. Those binaries point at the dev stack, not
+    # gitby.cloud - not for production use. GITBY_VERSION is ignored here.
+    base="https://github.com/${repo}/releases/download/development"
 elif [ "$version" = latest ]; then
     base="https://github.com/${repo}/releases/latest/download"
 else
     case "$version" in v*) release_tag=$version ;; *) release_tag="v$version" ;; esac
     base="https://github.com/${repo}/releases/download/${release_tag}"
 fi
+
+[ "$channel" = development ] && say "Using the development channel (dev stack; not for production)."
 
 if [ -n "${GITBY_INSTALL_DIR:-}" ]; then
     install_dir=$GITBY_INSTALL_DIR

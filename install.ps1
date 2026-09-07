@@ -3,7 +3,8 @@ param()
 
 # Install the Gitby CLI + TUI for the current Windows user. Running it again
 # updates an existing install in place (so does `gitby update`).
-# Optional environment variables: GITBY_VERSION, GITBY_INSTALL_DIR,
+# Optional environment variables: GITBY_VERSION, GITBY_CHANNEL (set to
+# "development" for the dev-stack pre-release channel), GITBY_INSTALL_DIR,
 # GITBY_DOWNLOAD_BASE, and GITBY_NO_MODIFY_PATH.
 
 $ErrorActionPreference = "Stop"
@@ -18,6 +19,7 @@ try {
 
 $repository = "GITBY-SOFTWARE/downloads"
 $version = if ($env:GITBY_VERSION) { $env:GITBY_VERSION } else { "latest" }
+$channel = if ($env:GITBY_CHANNEL) { $env:GITBY_CHANNEL } else { "release" }
 if ($env:GITBY_INSTALL_DIR) {
     $installDirectory = $env:GITBY_INSTALL_DIR
 } else {
@@ -54,6 +56,12 @@ $architectureLabel = if ($asset -eq "gitby-windows-arm64.zip") { "arm64" } else 
 
 if ($env:GITBY_DOWNLOAD_BASE) {
     $base = $env:GITBY_DOWNLOAD_BASE.TrimEnd("/")
+} elseif ($channel -eq "development") {
+    # The development channel is a single moving pre-release ("development")
+    # built from every push to main; those binaries talk to the dev stack, not
+    # gitby.cloud, and are not for production use. GITBY_VERSION is ignored.
+    $base = "https://github.com/$repository/releases/download/development"
+    Write-Host "Using the development channel (dev stack; not for production)."
 } elseif ($version -eq "latest") {
     $base = "https://github.com/$repository/releases/latest/download"
 } else {
