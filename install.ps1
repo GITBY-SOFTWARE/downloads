@@ -106,11 +106,21 @@ try {
 
     New-Item -ItemType Directory -Force -Path $installDirectory | Out-Null
     $destination = Join-Path $installDirectory "gitby.exe"
-    $staged = Join-Path $installDirectory (".gitby.new." + $PID + ".exe")
+    # A per-run token (NOT $PID): re-running the installer in the SAME PowerShell
+    # session reuses the PID, so the retired name collided and Move-Item -Force
+    # could not clobber the previous (often still-locked) .gitby.old.<pid>.exe -
+    # "Cannot create a file when that file already exists". A GUID never collides.
+    $token = [guid]::NewGuid().ToString("N")
+    $staged = Join-Path $installDirectory (".gitby.new." + $token + ".exe")
     Copy-Item -LiteralPath $sourceBinary -Destination $staged -Force
 
-    # Binaries an earlier update set aside while they were still running.
-    Get-ChildItem -LiteralPath $installDirectory -Filter ".gitby.old.*.exe" -Force -ErrorAction SilentlyContinue |
+    # Binaries an earlier update set aside while they were still running, plus
+    # any staged copy a previous run left behind. Best-effort: one still held
+    # open (its process alive) stays until the next run, and that is fine now
+    # that retired names are unique.
+    Get-ChildItem -LiteralPath $installDirectory -Force -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -like ".gitby.old.*.exe" -or $_.Name -like ".gitby.new.*.exe" } |
+        Where-Object { $_.FullName -ne $staged } |
         ForEach-Object { Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue }
 
     # Update in place: Windows will not overwrite an executable, and will not
@@ -120,7 +130,7 @@ try {
     $updating = Test-Path -LiteralPath $destination -PathType Leaf
     $retired = $null
     if ($updating) {
-        $retired = Join-Path $installDirectory (".gitby.old." + $PID + ".exe")
+        $retired = Join-Path $installDirectory (".gitby.old." + $token + ".exe")
         Move-Item -LiteralPath $destination -Destination $retired -Force
     }
     try {
