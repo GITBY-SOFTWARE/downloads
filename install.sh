@@ -118,7 +118,10 @@ actual=$(printf '%s' "$actual" | tr 'A-F' 'a-f')
 [ "$actual" = "$expected" ] || die "checksum mismatch for $asset"
 
 command_exists tar || die "tar is required to unpack Gitby"
-tar -xzf "$tmp_dir/$asset" -C "$tmp_dir" gitby
+# Unpack everything: the archive carries `gitby` and, on platforms that have
+# it, the `gitby-browser` sidecar next to it. Gitby finds the sidecar beside
+# its own binary, so both must land in the same directory.
+tar -xzf "$tmp_dir/$asset" -C "$tmp_dir"
 [ -f "$tmp_dir/gitby" ] && [ ! -L "$tmp_dir/gitby" ] || die "release archive did not contain a regular gitby binary"
 
 mkdir -p "$install_dir"
@@ -126,6 +129,14 @@ staged="$install_dir/.gitby.new.$$"
 cp "$tmp_dir/gitby" "$staged"
 chmod 0755 "$staged"
 mv -f "$staged" "$install_dir/gitby"
+
+# The browser sidecar, when the archive shipped one: install it next to gitby.
+if [ -f "$tmp_dir/gitby-browser" ] && [ ! -L "$tmp_dir/gitby-browser" ]; then
+    staged_browser="$install_dir/.gitby-browser.new.$$"
+    cp "$tmp_dir/gitby-browser" "$staged_browser"
+    chmod 0755 "$staged_browser"
+    mv -f "$staged_browser" "$install_dir/gitby-browser"
+fi
 
 path_changed=no
 case ":${PATH:-}:" in
