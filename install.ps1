@@ -145,6 +145,35 @@ try {
         Remove-Item -LiteralPath $retired -Force -ErrorAction SilentlyContinue
     }
 
+    # The browser sidecar, when the archive shipped one: install it next to
+    # gitby.exe. The TUI finds the sidecar beside its own binary, so both must
+    # land in the same directory. Reuse the same step-aside rename dance, since
+    # Windows will not overwrite a running executable but will rename it.
+    $sourceBrowser = Join-Path $expandedDirectory "gitby-browser.exe"
+    if (Test-Path -LiteralPath $sourceBrowser -PathType Leaf) {
+        $browserDestination = Join-Path $installDirectory "gitby-browser.exe"
+        $stagedBrowser = Join-Path $installDirectory (".gitby-browser.new." + $token + ".exe")
+        Copy-Item -LiteralPath $sourceBrowser -Destination $stagedBrowser -Force
+
+        $updatingBrowser = Test-Path -LiteralPath $browserDestination -PathType Leaf
+        $retiredBrowser = $null
+        if ($updatingBrowser) {
+            $retiredBrowser = Join-Path $installDirectory (".gitby-browser.old." + $token + ".exe")
+            Move-Item -LiteralPath $browserDestination -Destination $retiredBrowser -Force
+        }
+        try {
+            Move-Item -LiteralPath $stagedBrowser -Destination $browserDestination -Force
+        } catch {
+            if ($retiredBrowser -and (Test-Path -LiteralPath $retiredBrowser -PathType Leaf)) {
+                Move-Item -LiteralPath $retiredBrowser -Destination $browserDestination -Force -ErrorAction SilentlyContinue
+            }
+            throw
+        }
+        if ($retiredBrowser) {
+            Remove-Item -LiteralPath $retiredBrowser -Force -ErrorAction SilentlyContinue
+        }
+    }
+
     $pathChanged = $false
     $pathEntries = @($env:PATH -split ";" | Where-Object { $_ })
     $alreadyOnPath = $pathEntries | Where-Object {
