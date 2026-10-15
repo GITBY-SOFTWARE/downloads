@@ -31,12 +31,18 @@ public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, UIntPtr wP
     } catch {}
 }
 
-# Append a folder to the user's PATH in the registry, keeping the value as it is
-# stored. [Environment]::GetEnvironmentVariable returns it with every %VARIABLE%
-# expanded and SetEnvironmentVariable writes it back as a plain string, which
-# would replace those references with today's values for good (and turn the
-# REG_EXPAND_SZ value into REG_SZ). Returns $true when the value changed.
-function Add-GitbyUserPath {
+# Put a folder first on the user's PATH in the registry, keeping the value as it
+# is stored. [Environment]::GetEnvironmentVariable returns it with every
+# %VARIABLE% expanded and SetEnvironmentVariable writes it back as a plain
+# string, which would replace those references with today's values for good
+# (and turn the REG_EXPAND_SZ value into REG_SZ).
+#
+# First, not last: the folder holds only gitby.exe and gitby-browser.exe, so all
+# it can outrank is another gitby (an older copy, or another program by that
+# name). Last, such a copy answered to `gitby` instead, and `gitby update` ran
+# that one. An entry already there moves to the front. Returns $true when the
+# value changed.
+function Set-GitbyUserPathFirst {
     param([string]$Directory)
     $wanted = $Directory.TrimEnd("\")
     $key = [Microsoft.Win32.Registry]::CurrentUser.CreateSubKey("Environment")
@@ -50,22 +56,43 @@ function Add-GitbyUserPath {
                 $kind = [Microsoft.Win32.RegistryValueKind]::ExpandString
             }
         }
-        foreach ($entry in ($current -split ";")) {
-            if (-not $entry) { continue }
-            $expanded = [Environment]::ExpandEnvironmentVariables($entry)
-            if ($entry.TrimEnd("\") -ieq $wanted -or $expanded.TrimEnd("\") -ieq $wanted) {
-                return $false
-            }
+        $entries = @($current -split ";" | Where-Object { $_ })
+        $ours = @($entries | ForEach-Object {
+            $expanded = [Environment]::ExpandEnvironmentVariables($_)
+            ($_.TrimEnd("\") -ieq $wanted) -or ($expanded.TrimEnd("\") -ieq $wanted)
+        })
+        # Already first, and only once: nothing to change.
+        if ($entries.Count -gt 0 -and $ours[0] -and @($ours | Where-Object { $_ }).Count -eq 1) {
+            return $false
         }
-        # Appended, never prepended: user entries already follow the system
-        # ones, and Gitby does not need to win over the user's other tools.
-        $updated = if ($current) { $current.TrimEnd(";") + ";" + $Directory } else { $Directory }
+        $others = @(for ($i = 0; $i -lt $entries.Count; $i++) { if (-not $ours[$i]) { $entries[$i] } })
+        $updated = (@($Directory) + $others) -join ";"
         $key.SetValue("Path", $updated, $kind)
     } finally {
         $key.Close()
     }
     Send-GitbySettingChange
     return $true
+}
+
+# Every file on the system PATH that would answer to `gitby`. New terminals put
+# the system PATH before the user's, so one there runs instead of this install
+# however the user PATH is ordered.
+function Get-GitbySystemCopies {
+    $machine = [Environment]::GetEnvironmentVariable("Path", "Machine")
+    if (-not $machine) { return @() }
+    $found = foreach ($entry in ($machine -split ";")) {
+        if (-not $entry) { continue }
+        $dir = [Environment]::ExpandEnvironmentVariables($entry)
+        foreach ($extension in @(".exe", ".com", ".bat", ".cmd", ".ps1")) {
+            # A malformed PATH entry is skipped, not fatal to the install.
+            try {
+                $candidate = Join-Path $dir ("gitby" + $extension)
+                if (Test-Path -LiteralPath $candidate -PathType Leaf) { $candidate }
+            } catch {}
+        }
+    }
+    return @($found)
 }
 
 function Install-Gitby {
@@ -260,16 +287,46 @@ function Install-Gitby {
         }
 
         $pathChanged = $false
-        $pathEntries = @($env:PATH -split ";" | Where-Object { $_ })
-        $alreadyOnPath = $pathEntries | Where-Object {
-            $_.TrimEnd("\") -ieq $installDirectory.TrimEnd("\")
+        # This session finds this install first as well.
+        $sessionOthers = @($env:PATH -split ";" | Where-Object {
+            $_ -and ($_.TrimEnd("\") -ine $installDirectory.TrimEnd("\"))
+        })
+        $env:PATH = (@($installDirectory) + $sessionOthers) -join ";"
+        if (-not $env:GITBY_NO_MODIFY_PATH) {
+            $pathChanged = Set-GitbyUserPathFirst $installDirectory
         }
 
-        if (-not $alreadyOnPath) {
-            $env:PATH = "$env:PATH;$installDirectory"
+        # Anything else that answers to `gitby` would run instead of this
+        # install (and `gitby update` with it): named here, never removed.
+        $standIns = @(Get-Command gitby -CommandType Alias, Function -ErrorAction SilentlyContinue)
+        foreach ($standIn in $standIns) {
+            $kind = $standIn.CommandType.ToString()
+            Write-Warning "PowerShell has 'gitby' as a $($kind.ToLowerInvariant()), which runs instead of Gitby. Take it out of your PowerShell profile, and for this session run: Remove-Item ${kind}:gitby"
         }
-        if (-not $env:GITBY_NO_MODIFY_PATH) {
-            $pathChanged = Add-GitbyUserPath $installDirectory
+        $copies = @(Get-Command gitby -All -CommandType Application, ExternalScript -ErrorAction SilentlyContinue |
+            Where-Object { $_.Source -and ($_.Source -ine $destination) } |
+            ForEach-Object { $_.Source })
+        $systemCopies = @(Get-GitbySystemCopies | Where-Object { $_ -ine $destination })
+        $copies = @($copies + $systemCopies | Select-Object -Unique)
+        if ($copies.Count -gt 0) {
+            Write-Warning "Other copies of gitby are on your PATH. Remove them, so that 'gitby' (and 'gitby update') is always this install:"
+            foreach ($copy in $copies) {
+                Write-Host "    Remove-Item -LiteralPath '$copy'"
+            }
+            if ($systemCopies.Count -gt 0) {
+                Write-Warning "A copy on the system PATH comes before your own PATH in new terminals, so until it is gone they run that one, not this install."
+            }
+        }
+
+        # The installed binary answers before it is called ready.
+        $reported = $null
+        try {
+            $reported = & $destination --version 2>$null
+        } catch {}
+        if ($LASTEXITCODE -eq 0 -and $reported) {
+            Write-Host "Ready: $reported"
+        } else {
+            Write-Warning "The installed gitby did not answer 'gitby --version': $destination"
         }
 
         if ($updating) {
