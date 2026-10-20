@@ -25,3 +25,7 @@ summary: Paste pictures and run your own commands in the AI chat, Sync Repo is o
 - Taking upstream's version of a file could leave it staged when the repository refused the commit, which then blocked every later sync. It no longer does.
 - Full access for an agent switched off after every reconnect, such as a server restart or a dropped network. It now stays on until you leave the repository or restart Gitby.
 - An agent waiting on an approval could miss it and wait several seconds more.
+
+## Security
+
+- Gitby's connections no longer trust the emSign ECC Root CA - G3 root or its distrusted intermediates, whose private keys are now public (advisories RUSTSEC-2026-0381, -0382 and -0383). Before, someone holding those keys and able to intercept your network could have posed as Gitby's servers or GitHub.
