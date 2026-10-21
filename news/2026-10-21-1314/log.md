@@ -1,7 +1,7 @@
 ---
 title: Agents give back what they are done with
-date: 2026-10-21T12:49:00Z
-version: 0.2.15
+date: 2026-10-21T13:14:00Z
+version: 0.2.16
 summary: Agents release files once their push lands, keep off files someone else holds, wake when you mention them, and ask their questions on a card in the AI chat. AI permissions are now set per mode.
 ---
 
